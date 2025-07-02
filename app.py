@@ -2,28 +2,48 @@ import streamlit as st
 import requests
 
 st.set_page_config(page_title="TashBot", layout="wide")
-st.title("🤖 TashBot – Polymarket Live Feed")
+st.title("📊 TashBot – Polymarket Live Feed")
+st.markdown("Fetching the latest markets from [Polymarket](https://polymarket.com) using GraphQL...")
 
-st.markdown("Obteniendo los mercados más recientes de [Polymarket](https://polymarket.com) en tiempo real...")
+# GraphQL query
+query = """
+{
+  markets(first: 10, orderBy: volumeUSD, orderDirection: desc) {
+    id
+    title
+    endDate
+    volumeUSD
+    outcomes {
+      name
+      price {
+        yes
+      }
+    }
+  }
+}
+"""
 
-# Llamada a la API de Polymarket
-url = "https://api.polymarket.com/v3/markets"
 try:
-    response = requests.get(url)
+    response = requests.post(
+        "https://api.polymarket.com/graphql",
+        json={"query": query},
+        headers={"Content-Type": "application/json"}
+    )
     data = response.json()
-    markets = data.get("markets", [])
+    markets = data.get("data", {}).get("markets", [])
 
     if not markets:
-        st.warning("No se encontraron mercados.")
+        st.warning("No markets found.")
 
-    for market in markets[:10]:  # Mostramos solo los 10 primeros para que cargue rápido
+    for market in markets:
         st.subheader(market["title"])
-        st.write(f"📅 Cierra: {market['endDate']}")
-        st.write(f"💰 Volumen: ${market['volumeUSD']:,}")
-        st.write("Opciones:")
+        st.write(f"📅 Ends: {market['endDate']}")
+        st.write(f"💰 Volume: ${market['volumeUSD']:,.2f}")
+        st.write("Outcomes:")
         for outcome in market.get("outcomes", []):
-            st.write(f"- {outcome['name']}: {float(outcome['price']['yes'])*100:.2f}%")
+            price = float(outcome["price"]["yes"]) * 100
+            st.write(f"– {outcome['name']}: {price:.2f}%")
 
 except Exception as e:
-    st.error("Ocurrió un error al conectar con la API de Polymarket.")
+    st.error("An error occurred while connecting to the Polymarket GraphQL API.")
     st.code(str(e))
